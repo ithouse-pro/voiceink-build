@@ -47,6 +47,6 @@ bash build-voiceink.sh
 
 ## Дисклеймер
 
-Скрипт не аффилирован с разработчиком VoiceInk — это просто автоматизация официальной инструкции [BUILDING.md](https://github.com/Beingpax/VoiceInk/blob/main/BUILDING.md). Если сборка вам зашла — у автора VoiceInk можно купить [готовый бинарник](https://tryvoiceink.com), поддержав проект.
+Скрипт не аффилирован с разработчиком VoiceInk — это просто автоматизация официальной инструкции [BUILDING.md](https://github.com/Beingpax/VoiceInk/blob/main/BUILDING.md). Если сборка вам зашла — у автора VoiceInk можно купить [готовый бинарник]([https://tryvoiceink.com)](https://tryvoiceink.com/?atp=LQCqu0), поддержав проект.
 
 Лицензия: MIT.
