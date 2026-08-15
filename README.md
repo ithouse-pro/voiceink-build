@@ -21,11 +21,11 @@
 Скачайте скрипт и запустите:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/USERNAME/REPO/main/build-voiceink.sh
+curl -fsSLO https://raw.githubusercontent.com/ithouse-pro/voiceink-build/main/build-voiceink.sh
 bash build-voiceink.sh
 ```
 
-*(замените `USERNAME/REPO` на ваш репозиторий — или просто скачайте файл со страницы и запустите `bash build-voiceink.sh` из папки загрузок)*
+*(или скачайте [build-voiceink.sh](https://github.com/ithouse-pro/voiceink-build/blob/main/build-voiceink.sh) со страницы репозитория и запустите `bash build-voiceink.sh` из папки загрузок)*
 
 Пароль скрипт спросит один раз — для первичной настройки Xcode. Первая сборка занимает 5–15 минут плюс загрузка модели.
 
@@ -37,16 +37,24 @@ bash build-voiceink.sh
 
 ## Известные грабли
 
+- **Сборка падает на `Validate plug-in "CudaBuild" in package "mlx-swift"`.** VoiceInk использует Swift-пакеты с build-плагинами, а xcodebuild из терминала не запускает их без одобрения. Скрипт включает разрешение автоматически; если собираете руками:
+  ```bash
+  defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+  defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+  ```
+  и повторите `make local`. (Опечатка «Validatation» — так называется сам ключ Apple.)
+- **Сборка падает на `cannot execute tool 'metal' due to missing Metal Toolchain`.** В Xcode 26+ компилятор Metal — отдельный загружаемый компонент, а зависимость mlx-swift компилирует Metal-шейдеры. Скрипт скачивает компонент автоматически; вручную: `xcodebuild -downloadComponent MetalToolchain` (или Xcode → Settings → Components), затем повторить `make local`. Загрузка занимает несколько гигабайт.
+- **Whisper переводит русскую речь на английский.** Язык транскрипции в VoiceInk по умолчанию — English, а Whisper при английском языке вывода не транскрибирует, а переводит. Смените язык: **AI Models → Language → Russian** (или Auto-detect). Если пользуетесь Modes — у каждого режима свой языковой параметр, проверьте и его.
 - **Обрывы при клонировании зависимостей** (`curl 56 Connection reset` / `curl 92 HTTP/2 stream not closed`) — проблема канала до GitHub, не скрипта. Помогает перевод git на HTTP/1.1 и повтор:
   ```bash
   git config --global http.version HTTP/1.1
   rm -rf ~/VoiceInk-Build/.local-build/SourcePackages
   cd ~/VoiceInk-Build && make local
   ```
-- **Локальная сборка не получает автообновлений.** Для обновления просто запустите скрипт ещё раз — модель повторно качаться не будет.
+- **Локальная сборка не получает автообновлений.** Для обновления запустите скрипт ещё раз: он сверит версии и, если обновлений нет, выйдет за секунды; если есть — пересоберёт приложение (10–20 минут, модель повторно не качается). Принудительная пересборка: `bash build-voiceink.sh --force`.
 
 ## Дисклеймер
 
-Скрипт не аффилирован с разработчиком VoiceInk — это просто автоматизация официальной инструкции [BUILDING.md](https://github.com/Beingpax/VoiceInk/blob/main/BUILDING.md). Если сборка вам зашла — у автора VoiceInk можно купить [готовый бинарник]([https://tryvoiceink.com)](https://tryvoiceink.com/?atp=LQCqu0), поддержав проект.
+Скрипт не аффилирован с разработчиком VoiceInk — это просто автоматизация официальной инструкции [BUILDING.md](https://github.com/Beingpax/VoiceInk/blob/main/BUILDING.md). Если сборка вам зашла — у автора VoiceInk можно купить [готовый бинарник](https://tryvoiceink.com/?atp=LQCqu0) (партнёрская ссылка), поддержав проект.
 
 Лицензия: MIT.

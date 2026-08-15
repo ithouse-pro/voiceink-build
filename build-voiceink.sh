@@ -3,8 +3,17 @@
 #  VoiceInk — автоматическая сборка из исходников (macOS)
 #  Для Apple Silicon (M1/M2/M3/M4). Требуется Xcode.
 #  Использование:  bash build-voiceink.sh
+#
+#  Идея и публикация: Дмитрий Рогачев — https://t.me/rogachevdm
+#  Скрипт сгенерирован Claude (Anthropic) по официальному
+#  BUILDING.md проекта VoiceInk: https://github.com/Beingpax/VoiceInk
+#  Не аффилирован с разработчиком VoiceInk. Лицензия: MIT.
 # ============================================================
 set -u
+
+# Флаги: --force / -f — пересобрать, даже если обновлений в репозитории нет
+FORCE=0
+[[ "${1:-}" == "--force" || "${1:-}" == "-f" ]] && FORCE=1
 
 WORKDIR="$HOME/VoiceInk-Build"
 DEPS_DIR="$HOME/VoiceInk-Dependencies"
@@ -40,12 +49,29 @@ if ! xcodebuild -checkFirstLaunchStatus >/dev/null 2>&1; then
   sudo xcodebuild -license accept
   sudo xcodebuild -runFirstLaunch
 fi
+# Xcode 26+ ставит компилятор Metal отдельным компонентом — без него
+# не собираются зависимости с GPU-кодом (mlx-swift).
+if ! xcrun metal --version >/dev/null 2>&1; then
+  msg "Скачиваю Metal Toolchain (нужен для GPU-кода зависимостей; загрузка объёмная)"
+  xcodebuild -downloadComponent MetalToolchain \
+    || die "Не удалось скачать Metal Toolchain. Вручную: Xcode → Settings → Components."
+fi
 ok "Xcode готов: $(xcodebuild -version | head -1)"
 
-# ---------- 2. Клонирование репозитория ----------
+# ---------- 2. Клонирование / обновление репозитория ----------
 msg "Получаю исходники VoiceInk"
+STAMP_FILE="$WORKDIR/.installed-commit"
 if [[ -d "$WORKDIR/.git" ]]; then
   git -C "$WORKDIR" pull --ff-only || warn "Не удалось обновить репозиторий, собираю текущую версию."
+  HEAD_NOW=$(git -C "$WORKDIR" rev-parse HEAD 2>/dev/null || echo "none")
+  INSTALLED_COMMIT=$(cat "$STAMP_FILE" 2>/dev/null || echo "unknown")
+  # Пропускаем сборку, только если установленное приложение собрано ИМЕННО из
+  # текущего коммита (штамп ставится в конце успешной установки).
+  if [[ "$HEAD_NOW" == "$INSTALLED_COMMIT" && -d "/Applications/VoiceInk.app" && "$FORCE" != "1" ]]; then
+    ok "Обновлений нет — установленный VoiceInk собран из актуальных исходников."
+    echo "    Пересобрать принудительно: bash $0 --force"
+    exit 0
+  fi
 else
   git clone https://github.com/Beingpax/VoiceInk.git "$WORKDIR" || die "Не удалось клонировать репозиторий."
 fi
@@ -85,6 +111,15 @@ if ! command -v cmake >/dev/null 2>&1; then
   fetch_prebuilt_xcframework
 fi
 
+# ---------- 3.5 Разрешение плагинов Swift-пакетов ----------
+# Зависимости VoiceInk (mlx-swift и др.) содержат build-плагины. Из терминала
+# xcodebuild не запускает неодобренные плагины и падает на "Validate plug-in".
+# Разрешаем их выполнение (отменить: defaults delete com.apple.dt.Xcode <ключ>).
+msg "Разрешаю выполнение плагинов Swift-пакетов для терминальной сборки"
+defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+ok "Плагины пакетов разрешены"
+
 # ---------- 4. Сборка ----------
 cd "$WORKDIR" || die "Не удалось перейти в $WORKDIR"
 msg "Собираю VoiceInk (make local — без сертификата Apple Developer)"
@@ -104,6 +139,8 @@ rm -rf "/Applications/VoiceInk.app"
 if ditto "$APP_OUT" "/Applications/VoiceInk.app"; then
   ok "Установлено: /Applications/VoiceInk.app"
   APP_FINAL="/Applications/VoiceInk.app"
+  # Штамп: из какого коммита собрано установленное приложение
+  git -C "$WORKDIR" rev-parse HEAD > "$STAMP_FILE" 2>/dev/null || true
 else
   warn "Не удалось скопировать в /Applications — приложение осталось в: $APP_OUT"
   APP_FINAL="$APP_OUT"
@@ -164,6 +201,8 @@ cat <<'EOF'
     Set as Default (она уже скачана этим скриптом).
  3. Назначьте хоткей диктовки в настройках и проверьте в любом текстовом поле.
 
-Примечание: локальная сборка не получает автообновлений —
-для обновления просто запустите этот скрипт ещё раз.
+Примечание: локальная сборка не получает автообновлений.
+Для обновления просто запустите этот скрипт ещё раз: если новой
+версии нет — он поймёт это и выйдет за секунды, если есть —
+пересоберёт (10–20 минут). Принудительная пересборка: --force
 EOF
